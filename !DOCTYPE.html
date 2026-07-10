@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShiftLink - 塾シフト管理システム</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- ヘッダー -->
+    <header class="bg-indigo-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-indigo-900 p-2 rounded-lg shadow-inner">
+                    <i data-lucide="calendar-range" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider flex items-center">
+                        ShiftLink <span class="text-xs bg-indigo-700 text-indigo-200 px-2 py-0.5 rounded-full ml-2 font-normal">v1.1</span>
+                    </h1>
+                    <p class="text-xs text-indigo-200">個別指導塾専用 シフトマッチング</p>
+                </div>
+            </div>
+            
+            <!-- ログイン状態表示 -->
+            <div id="login-status-bar" class="flex items-center space-x-4">
+                <span id="user-badge" class="text-sm bg-indigo-800 px-3 py-1.5 rounded-full border border-indigo-700 flex items-center space-x-2">
+                    <i data-lucide="user" class="w-4 h-4 text-indigo-300"></i>
+                    <span id="current-user-name">ゲスト</span>
+                </span>
+                <button id="logout-btn" class="hidden text-sm bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-md transition flex items-center space-x-1 shadow">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>ログアウト</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        
+        <!-- ==================== ログイン画面 ==================== -->
+        <section id="login-section" class="max-w-md mx-auto my-12 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-800 to-indigo-900 px-6 py-8 text-white text-center">
+                <i data-lucide="lock" class="w-12 h-12 mx-auto mb-3 text-indigo-300"></i>
+                <h2 class="text-2xl font-bold">システムログイン</h2>
+                <p class="text-indigo-200 text-sm mt-1">アカウント情報を入力してください</p>
+            </div>
+            <form id="login-form" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">ユーザーID</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                        </span>
+                        <input type="text" id="login-id" required class="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="T001 または S001">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">パスワード</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i data-lucide="key-round" class="w-5 h-5"></i>
+                        </span>
+                        <input type="password" id="login-pw" required class="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition shadow-md flex items-center justify-center space-x-2">
+                    <i data-lucide="log-in" class="w-5 h-5"></i>
+                    <span>ログインする</span>
+                </button>
+                <div class="text-xs text-slate-400 border-t border-slate-100 pt-4 text-center space-y-1">
+                    <p>講師用：IDとPWは共通（例: 講師Aは T001 / Pass123）</p>
+                    <p>生徒用：IDとPWは共通（例: 生徒Aは S001 / Pass123）</p>
+                    <p class="font-semibold text-indigo-600">教室長：T000 / Manager123</p>
+                </div>
+            </form>
+        </section>
+
+        <!-- ==================== メインシステム（ログイン後） ==================== -->
+        <section id="main-system-section" class="hidden space-y-6 animate-fade-in">
+            
+            <!-- ナビゲーションタブ -->
+            <nav id="nav-tabs" class="flex flex-wrap border-b border-slate-200 gap-1"></nav>
+
+            <!-- タブコンテンツ配置エリア -->
+            <div id="tab-contents" class="bg-white rounded-xl shadow-md border border-slate-200/60 p-4 md:p-6">
+                
+                <!-- 【共通】お知らせタブ -->
+                <div id="tab-news" class="tab-content space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                            <i data-lucide="bell" class="w-5 h-5 text-indigo-600"></i>
+                            <span>教室からのお知らせ</span>
+                        </h3>
+                    </div>
+                    <div id="news-list" class="space-y-3">
+                        <!-- 動的生成 -->
+                    </div>
+                </div>
+
+                <!-- 【講師用】希望シフト提出タブ -->
+                <div id="tab-teacher-submit" class="tab-content space-y-4">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                        <i data-lucide="calendar-plus" class="w-5 h-5 text-emerald-600"></i>
+                        <span>シフト希望提出</span>
+                    </h3>
+                    <p class="text-sm text-slate-500">出勤可能な日程とコマを選択して「希望を保存」を押してください。</p>
+                    
+                    <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg shadow-sm">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr id="teacher-submit-thead-tr"></tr>
+                            </thead>
+                            <tbody id="teacher-submit-tbody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="save-teacher-submit-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium shadow transition flex items-center space-x-2">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>希望を保存する</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 【生徒用】授業希望予約タブ -->
+                <div id="tab-student-submit" class="tab-content space-y-4">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                        <i data-lucide="graduation-cap" class="w-5 h-5 text-sky-600"></i>
+                        <span>受講希望・予約</span>
+                    </h3>
+                    <p class="text-sm text-slate-500">授業を受けたい日時を選択し、希望する教科を選んでください。</p>
+                    
+                    <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg shadow-sm">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr id="student-submit-thead-tr"></tr>
+                            </thead>
+                            <tbody id="student-submit-tbody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="save-student-submit-btn" class="bg-sky-600 hover:bg-sky-700 text-white px-6 py-2 rounded-lg font-medium shadow transition flex items-center space-x-2">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>予約希望を保存する</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 【共通】確定シフト閲覧タブ -->
+                <div id="tab-view-schedule" class="tab-content space-y-4">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                        <i data-lucide="calendar-check" class="w-5 h-5 text-indigo-600"></i>
+                        <span>確定シフト・スケジュール</span>
+                    </h3>
+                    <p class="text-sm text-slate-500">調整・確定された最新のスケジュールです。</p>
+                    <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg shadow-sm">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr id="view-schedule-thead-tr"></tr>
+                            </thead>
+                            <tbody id="view-schedule-tbody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 【教室長用】自動マッチング・駒組タブ -->
+                <div id="tab-manager-matching" class="tab-content space-y-6">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center border-b border-slate-100 pb-4 gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                                <i data-lucide="cpu" class="w-5 h-5 text-violet-600"></i>
+                                <span>AI自動マッチング＆シフト編成</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">講師の希望・指導可能教科と、生徒の受講希望・科目を自動で組み合わせます。</p>
+                        </div>
+                        <div class="flex items-center space-x-2 self-end md:self-auto">
+                            <button id="run-matching-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition flex items-center space-x-1.5">
+                                <i data-lucide="play" class="w-4 h-4"></i>
+                                <span>自動マッチング実行</span>
+                            </button>
+                            <button id="save-matching-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition flex items-center space-x-1.5">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                                <span>編成ダイヤを確定・公開</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- マッチングボード表示 -->
+                    <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg shadow-sm">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr id="matching-thead-tr"></tr>
+                            </thead>
+                            <tbody id="matching-tbody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 【教室長用】マスターデータ管理タブ -->
+                <div id="tab-manager-master" class="tab-content space-y-6">
+                    <h3 class="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center space-x-2">
+                        <i data-lucide="database" class="w-5 h-5 text-amber-600"></i>
+                        <span>マスターデータ・所属管理</span>
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- 講師一覧 -->
+                        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center justify-between">
+                                <span class="flex items-center space-x-1.5">
+                                    <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+                                    <span>登録講師一覧</span>
+                                </span>
+                                <span id="teacher-count" class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-normal">0名</span>
+                            </h4>
+                            <div class="overflow-y-auto max-h-60 border border-slate-200 rounded-lg bg-white custom-scrollbar">
+                                <table class="w-full text-xs text-left">
+                                    <thead class="bg-slate-100 sticky top-0 border-b border-slate-200">
+                                        <tr><th class="p-2">ID</th><th class="p-2">名前</th><th class="p-2">指導可能教科</th></tr>
+                                    </thead>
+                                    <tbody id="master-teacher-tbody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 生徒一覧 -->
+                        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center justify-between">
+                                <span class="flex items-center space-x-1.5">
+                                    <i data-lucide="users" class="w-4 h-4 text-sky-600"></i>
+                                    <span>登録生徒一覧</span>
+                                </span>
+                                <span id="student-count" class="text-xs bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-normal">0名</span>
+                            </h4>
+                            <div class="overflow-y-auto max-h-60 border border-slate-200 rounded-lg bg-white custom-scrollbar">
+                                <table class="w-full text-xs text-left">
+                                    <thead class="bg-slate-100 sticky top-0 border-b border-slate-200">
+                                        <tr><th class="p-2">ID</th><th class="p-2">名前</th><th class="p-2">受講科目</th></tr>
+                                    </thead>
+                                    <tbody id="master-student-tbody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 【教室長用】アカウント・外部連携設定 -->
+                <div id="tab-manager-settings" class="tab-content space-y-6">
+                    <h3 class="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center space-x-2">
+                        <i data-lucide="settings" class="w-5 h-5 text-slate-600"></i>
+                        <span>システム設定・アカウント設定</span>
+                    </h3>
+                    
+                    <!-- GAS連携コンポーネント -->
+                    <div class="border border-slate-200 rounded-xl p-5 bg-indigo-50/30 border-l-4 border-l-indigo-600 space-y-4">
+                        <div>
+                            <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                <i data-lucide="cloud-lightning" class="w-5 h-5 text-indigo-600"></i>
+                                <span>Google Spreadsheet連携設定 (GAS)</span>
+                            </h4>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                                Google Apps Script (GAS) をウェブアプリとしてデプロイし、そのURLを設定することで、全ユーザーのシフト提出状況、および確定スケジュールをクラウド上のスプレッドシートと双方向リアルタイム同期させることが可能です。
+                            </p>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-slate-700">GAS ウェブアプリ URL (Web App URL)</label>
+                            <div class="flex gap-2">
+                                <input type="password" id="gas-url-input" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 font-mono" placeholder="https://script.google.com/macros/s/.../exec">
+                                <button id="toggle-gas-visibility" class="px-3 border border-slate-300 rounded-lg hover:bg-slate-100 text-slate-600 transition">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between pt-2 border-t border-indigo-100/50">
+                            <div class="flex items-center space-x-2">
+                                <span id="gas-status-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                <span id="gas-status-text" class="text-xs font-medium text-slate-600">GAS接続：未確認（ローカル動作中）</span>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button id="test-gas-btn" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-md transition flex items-center space-x-1">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                    <span>接続テスト＆同期</span>
+                                </button>
+                                <button id="save-gas-url-btn" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md shadow transition flex items-center space-x-1">
+                                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                    <span>URLをブラウザに保存</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- フッター -->
+    <footer class="bg-slate-800 text-slate-400 text-xs text-center py-4 border-t border-slate-700 mt-12">
+        <p>&copy; 2026 ShiftLink System. All Rights Reserved. Designed for Cram School Management.</p>
+    </footer>
+
+    <!-- 全体通知トースト用コンテナ -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+    <!-- ==================== システムスクリプト (JavaScript) ==================== -->
+    <script>
+        // ==========================================
+        // 1. 環境定数・GAS連携設定（★ここに直書き）
+        // ==========================================
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbws0ezA6o9EZL2bcqCJ4-eLz5REugy9l8Iz3ISgQDgdCP-CXc12-G3tD9_m6QkhpQV77A/exec";
+
+        // 日程・時間マスタ（月〜土の6日間、4つのコマ）
+        const DAYS = ['月', '火', '水', '木', '金', '土'];
+        const SLOTS = [
+            { id: 1, name: '1講 (15:30-17:00)' },
+            { id: 2, name: '2講 (17:10-18:40)' },
+            { id: 3, name: '3講 (18:50-20:20)' },
+            { id: 4, name: '4講 (20:30-22:00)' }
+        ];
+
+        // 共通科目定義
+        const SUBJECTS = ['英語', '数学', '国語', '理科', '社会'];
+
+        // ==========================================
+        // 2. モック用マスターデータ（フォールバック用）
+        // ==========================================
+        const MOCK_TEACHERS = [
+            { id: 'T001', name: '講師A', subjects: ['英語', '国語'] },
+            { id: 'T002', name: '講師B', subjects: ['数学', '理科'] },
+            { id: 'T003', name: '講師C', subjects: ['英語', '数学', '社会'] },
+            { id: 'T004', name: '講師D', subjects: ['国語', '社会'] }
+        ];
+
+        const MOCK_STUDENTS = [
+            { id: 'S001', name: '生徒A', subjects: ['英語', '数学'] },
+            { id: 'S002', name: '生徒B', subjects: ['数学'] },
+            { id: 'S003', name: '生徒C', subjects: ['英語'] },
+            { id: 'S004', name: '生徒D', subjects: ['理科', '社会'] },
+            { id: 'S005', name: '生徒E', subjects: ['数学', '国語'] }
+        ];
+
+        const MOCK_NEWS = [
+            { id: 1, date: '2026/04/10', title: '【重要】5月度シフト希望の提出期限について', content: '来月のシフト希望は4月25日までに提出を完了させてください。ご協力をお願いします。', category: '重要' },
+            { id: 2, date: '2026/04/08', title: 'ゴールデンウィーク期間中の休校日程', content: '5月1日〜5月5日は完全休校期間となります。通常授業・自習室ともに利用できません。', category: 'お知らせ' }
+        ];
+
+        // ==========================================
+        // 3. アプリケーション状態管理 (State)
+        // ==========================================
+        let state = {
+            currentUser: null,      // ログイン中のユーザーオブジェクト
+            teachers: [],           // 講師マスター
+            students: [],           // 生徒マスター
+            news: [],               // お知らせデータ
+            teacherSubmissions: {}, // 講師シフト希望データ { ユーザーID: { "曜日-コマ": true/false } }
+            studentSubmissions: {}, // 生徒予約希望データ { ユーザーID: { "曜日-コマ": "科目" / "" } }
+            fixedSchedule: {}       // 確定した配置スケジュール { "曜日-コマ": [ { teacherId, studentId, subject }, ... ] }
+        };
+
+        // ==========================================
+        // 4. 初期化処理・イベントバインド
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            initLucide();
+            loadLocalSettings();
+            await loadInitialData();
+            setupEventListeners();
+            checkAutoLogin();
+        });
+
+        function initLucide() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        // ローカルストレージからGASのURL等があれば読み込む設定
+        function loadLocalSettings() {
+            const savedUrl = localStorage.getItem('shiftlink_gas_url');
+            const urlInput = document.getElementById('gas-url-input');
+            
+            // 直書き設定が優先、なければローカルストレージ
+            if (GAS_WEB_APP_URL) {
+                urlInput.value = GAS_WEB_APP_URL;
+                updateGasStatusIndicator(true, "環境変数でGAS連携中");
+            } else if (savedUrl) {
+                urlInput.value = savedUrl;
+                updateGasStatusIndicator(true, "ブラウザ保存のURLで連携中");
+            } else {
+                updateGasStatusIndicator(false, "未連携（ローカルスタンドアロン）");
+            }
+        }
+
+        function getActiveGasUrl() {
+            return GAS_WEB_APP_URL || document.getElementById('gas-url-input').value.trim();
+        }
+
+        function updateGasStatusIndicator(connected, text) {
+            const ind = document.getElementById('gas-status-indicator');
+            const txt = document.getElementById('gas-status-text');
+            if (connected) {
+                ind.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500 animate-pulse";
+                txt.textContent = text;
+                txt.className = "text-xs font-semibold text-emerald-600";
+            } else {
+                ind.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+                txt.textContent = text;
+                txt.className = "text-xs font-medium text-slate-500";
+            }
+        }
+
+        // 初期データの読み込み（GAS通信またはローカルストレージ/モック）
+        async function loadInitialData() {
+            // まずモック、またはローカルに保存されているキャッシュデータをベースにする
+            state.teachers = JSON.parse(localStorage.getItem('sl_teachers')) || MOCK_TEACHERS;
+            state.students = JSON.parse(localStorage.getItem('sl_students')) || MOCK_STUDENTS;
+            state.news = JSON.parse(localStorage.getItem('sl_news')) || MOCK_NEWS;
+            state.teacherSubmissions = JSON.parse(localStorage.getItem('sl_t_sub')) || {};
+            state.studentSubmissions = JSON.parse(localStorage.getItem('sl_s_sub')) || {};
+            state.fixedSchedule = JSON.parse(localStorage.getItem('sl_fixed')) || {};
+
+            // GASのURLが設定されている場合はクラウドから最新データを引く
+            const gasUrl = getActiveGasUrl();
+            if (gasUrl) {
+                showToast("クラウドから最新データを同期中...", "info");
+                const cloudData = await loadFromGas(gasUrl);
+                if (cloudData) {
+                    if (cloudData.teachers && cloudData.teachers.length > 0) state.teachers = cloudData.teachers;
+                    if (cloudData.students && cloudData.students.length > 0) state.students = cloudData.students;
+                    if (cloudData.news && cloudData.news.length > 0) state.news = cloudData.news;
+                    if (cloudData.teacherSubmissions) state.teacherSubmissions = cloudData.teacherSubmissions;
+                    if (cloudData.studentSubmissions) state.studentSubmissions = cloudData.studentSubmissions;
+                    if (cloudData.fixedSchedule) state.fixedSchedule = cloudData.fixedSchedule;
+                    
+                    saveToLocalStorage();
+                    updateGasStatusIndicator(true, "クラウド同期完了");
+                    showToast("同期に成功しました", "success");
+                } else {
+                    updateGasStatusIndicator(false, "同期エラー。ローカルモード稼働");
+                    showToast("同期失敗。ローカルデータで動作します", "warning");
+                }
+            }
+            
+            refreshMasterTables();
+            renderNews();
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('sl_teachers', JSON.stringify(state.teachers));
+            localStorage.setItem('sl_students', JSON.stringify(state.students));
+            localStorage.setItem('sl_news', JSON.stringify(state.news));
+            localStorage.setItem('sl_t_sub', JSON.stringify(state.teacherSubmissions));
+            localStorage.setItem('sl_s_sub', JSON.stringify(state.studentSubmissions));
+            localStorage.setItem('sl_fixed', JSON.stringify(state.fixedSchedule));
+        }
+
+        // ==========================================
+        // 5. GAS API 通信制御 (fetch)
+        // ==========================================
+        async function loadFromGas(url) {
+            try {
+                // キャッシュ回避
+                const response = await fetch(`${url}?action=getData&_t=${Date.now()}`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                if (!response.ok) throw new Error('Network response ok error');
+                const resData = await response.json();
+                return resData.status === "success" ? resData.data : null;
+            } catch (e) {
+                console.error("GAS読み込みエラー:", e);
+                return null;
+            }
+        }
+
+        async function postToGas(action, payload) {
+            const url = getActiveGasUrl();
+            if (!url) return true; // 未設定時はローカルのみでOK判定
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'text/plain' }, // CORS対応のため敢えてtext/plainにするケースが多い
+                    body: JSON.stringify({ action: action, data: payload })
+                });
+                if (!response.ok) throw new Error('POST失敗');
+                const resData = await response.json();
+                return resData.status === "success";
+            } catch (e) {
+                console.error(`GAS送信エラー (${action}):`, e);
+                return false;
+            }
+        }
+
+        // ==========================================
+        // 6. 認証・ログインマネジメント
+        // ==========================================
+        function setupEventListeners() {
+            // ログインフォーム
+            document.getElementById('login-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                handleLogin();
+            });
+
+            // ログアウト
+            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+
+            // GAS設定系
+            document.getElementById('save-gas-url-btn').addEventListener('click', () => {
+                const url = document.getElementById('gas-url-input').value.trim();
+                localStorage.setItem('shiftlink_gas_url', url);
+                showToast("ブラウザにURLを記憶しました", "success");
+                loadInitialData();
+            });
+
+            document.getElementById('toggle-gas-visibility').addEventListener('click', () => {
+                const input = document.getElementById('gas-url-input');
+                input.type = input.type === 'password' ? 'text' : 'password';
+            });
+
+            document.getElementById('test-gas-btn').addEventListener('click', () => {
+                loadInitialData();
+            });
+
+            // 講師希望保存
+            document.getElementById('save-teacher-submit-btn').addEventListener('click', saveTeacherSubmission);
+            
+            // 生徒予約保存
+            document.getElementById('save-student-submit-btn').addEventListener('click', saveStudentSubmission);
+
+            // 教室長自動マッチング
+            document.getElementById('run-matching-btn').addEventListener('click', runMatchingAlgorithm);
+            document.getElementById('save-matching-btn').addEventListener('click', commitMatchingSchedule);
+        }
+
+        function checkAutoLogin() {
+            const savedUser = sessionStorage.getItem('sl_logged_user');
+            if (savedUser) {
+                state.currentUser = JSON.parse(savedUser);
+                enterSystem();
+            }
+        }
+
+        function handleLogin() {
+            const id = document.getElementById('login-id').value.trim();
+            const pw = document.getElementById('login-pw').value.trim();
+
+            let userObj = null;
+
+            if (id === 'T000' && pw === 'Manager123') {
+                userObj = { id: 'T000', name: '教室長(管理者)', role: 'manager' };
+            } else if (id.startsWith('T')) {
+                const t = state.teachers.find(x => x.id === id);
+                if (t && pw === 'Pass123') {
+                    userObj = { ...t, role: 'teacher' };
+                }
+            } else if (id.startsWith('S')) {
+                const s = state.students.find(x => x.id === id);
+                if (s && pw === 'Pass123') {
+                    userObj = { ...s, role: 'student' };
+                }
+            }
+
+            if (userObj) {
+                state.currentUser = userObj;
+                sessionStorage.setItem('sl_logged_user', JSON.stringify(userObj));
+                showToast(`ログイン成功: ${userObj.name}様`, "success");
+                enterSystem();
+            } else {
+                showToast("IDまたはパスワードが正しくありません", "danger");
+            }
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem('sl_logged_user');
+            state.currentUser = null;
+            
+            document.getElementById('main-system-section').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.add('hidden');
+            document.getElementById('current-user-name').textContent = "ゲスト";
+            
+            showToast("ログアウトしました", "info");
+        }
+
+        function enterSystem() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('main-system-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.remove('hidden');
+            document.getElementById('current-user-name').textContent = `${state.currentUser.name} (${state.currentUser.id})`;
+
+            buildTabs();
+            // 最初のアクティブタブ決定
+            switchTab('news');
+        }
+
+        // ==========================================
+        // 7. UI動的レンダリング（タブ・テーブル構造）
+        // ==========================================
+        function buildTabs() {
+            const container = document.getElementById('nav-tabs');
+            container.innerHTML = '';
+
+            const tabs = [
+                { id: 'news', label: 'お知らせ', icon: 'bell', roles: ['manager', 'teacher', 'student'] },
+                { id: 'teacher-submit', label: 'シフト希望提出', icon: 'calendar-plus', roles: ['teacher'] },
+                { id: 'student-submit', label: '受講予約希望', icon: 'graduation-cap', roles: ['student'] },
+                { id: 'view-schedule', label: '確定スケジュール', icon: 'calendar-check', roles: ['manager', 'teacher', 'student'] },
+                { id: 'manager-matching', label: '自動マッチング・編成', icon: 'cpu', roles: ['manager'] },
+                { id: 'manager-master', label: '所属データ管理', icon: 'database', roles: ['manager'] },
+                { id: 'manager-settings', label: '外部連携設定', icon: 'settings', roles: ['manager'] }
+            ];
+
+            tabs.forEach(t => {
+                if (t.roles.includes(state.currentUser.role)) {
+                    const btn = document.createElement('button');
+                    btn.id = `tab-btn-${t.id}`;
+                    btn.className = "flex items-center space-x-1.5 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 transition focus:outline-none";
+                    btn.innerHTML = `<i data-lucide="${t.icon}" class="w-4 h-4"></i><span>${t.label}</span>`;
+                    btn.addEventListener('click', () => switchTab(t.id));
+                    container.appendChild(btn);
+                }
+            });
+            initLucide();
+        }
+
+        function switchTab(tabId) {
+            // タブボタンのアクティブクラス切り替え
+            document.querySelectorAll('#nav-tabs button').forEach(btn => {
+                btn.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'text-slate-500');
+                activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
+            }
+
+            // コンテンツの切り替え
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            const activeContent = document.getElementById(`tab-${tabId}`);
+            if (activeContent) activeContent.classList.add('active');
+
+            // タブ固有の開いたときの再描画処理
+            if (tabId === 'teacher-submit') renderTeacherSubmitTable();
+            if (tabId === 'student-submit') renderStudentSubmitTable();
+            if (tabId === 'view-schedule') renderFixedScheduleTable();
+            if (tabId === 'manager-matching') renderMatchingBoard();
+        }
+
+        function renderNews() {
+            const container = document.getElementById('news-list');
+            container.innerHTML = '';
+            state.news.forEach(n => {
+                const badgeColor = n.category === '重要' ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+                const div = document.createElement('div');
+                div.className = "p-4 border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition bg-white";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-2 text-xs mb-1.5 text-slate-400">
+                        <span class="px-2 py-0.5 rounded border text-xxs font-semibold ${badgeColor}">${n.category}</span>
+                        <span><i data-lucide="clock" class="w-3 h-3 inline mr-0.5"></i>${n.date}</span>
+                    </div>
+                    <h4 class="font-bold text-slate-800 mb-1">${n.title}</h4>
+                    <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${n.content}</p>
+                `;
+                container.appendChild(div);
+            });
+            initLucide();
+        }
+
+        function refreshMasterTables() {
+            document.getElementById('teacher-count').textContent = `${state.teachers.length}名`;
+            document.getElementById('student-count').textContent = `${state.students.length}名`;
+
+            const tBody = document.getElementById('master-teacher-tbody');
+            tBody.innerHTML = '';
+            state.teachers.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="p-2 font-mono font-bold">${t.id}</td><td class="p-2">${t.name}</td><td class="p-2"><span class="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">${t.subjects.join(', ')}</span></td>`;
+                tBody.appendChild(tr);
+            });
+
+            const sBody = document.getElementById('master-student-tbody');
+            sBody.innerHTML = '';
+            state.students.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="p-2 font-mono font-bold">${s.id}</td><td class="p-2">${s.name}</td><td class="p-2"><span class="bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded border border-sky-200">${s.subjects.join(', ')}</span></td>`;
+                sBody.appendChild(tr);
+            });
+        }
+
+        // ==========================================
+        // 8. 講師：シフト希望提出画面処理
+        // ==========================================
+        function renderTeacherSubmitTable() {
+            const theadTr = document.getElementById('teacher-submit-thead-tr');
+            const tbody = document.getElementById('teacher-submit-tbody');
+            
+            theadTr.innerHTML = '<th class="p-3 text-slate-500 font-medium">時間割 / コマ</th>';
+            DAYS.forEach(d => { theadTr.innerHTML += `<th class="p-3 text-center">${d}曜日</th>`; });
+
+            tbody.innerHTML = '';
+            const uid = state.currentUser.id;
+            const mySub = state.teacherSubmissions[uid] || {};
+
+            SLOTS.forEach(slot => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/50 transition";
+                tr.innerHTML = `<td class="p-3 font-medium text-slate-700 bg-slate-50/30">${slot.name}</td>`;
+                
+                DAYS.forEach(day => {
+                    const key = `${day}-${slot.id}`;
+                    const checked = mySub[key] === true ? 'checked' : '';
+                    tr.innerHTML += `
+                        <td class="p-3 text-center">
+                            <label class="inline-flex items-center justify-center w-8 h-8 rounded-full border cursor-pointer transition select-none has-[:checked]:bg-emerald-500 has-[:checked]:text-white has-[:checked]:border-emerald-600 bg-white hover:bg-slate-100 border-slate-300">
+                                <input type="checkbox" data-key="${key}" ${checked} class="hidden teacher-chk">
+                                <i data-lucide="check" class="w-4 h-4 checkbox-icon"></i>
+                            </label>
+                        </td>
+                    `;
+                });
+                tbody.appendChild(tr);
+            });
+            initLucide();
+        }
+
+        async function saveTeacherSubmission() {
+            const uid = state.currentUser.id;
+            if (!state.teacherSubmissions[uid]) state.teacherSubmissions[uid] = {};
+
+            document.querySelectorAll('.teacher-chk').forEach(chk => {
+                const key = chk.getAttribute('data-key');
+                state.teacherSubmissions[uid][key] = chk.checked;
+            });
+
+            saveToLocalStorage();
+            showToast("ローカルへ希望シフトを保存しました。同期中...", "info");
+
+            const ok = await postToGas('saveTeacherSubmissions', state.teacherSubmissions);
+            if (ok) {
+                showToast("クラウドのスプレッドシートと同期完了しました", "success");
+            } else {
+                showToast("クラウド同期失敗。ローカルのみに保存されました", "warning");
+            }
+        }
+
+        // ==========================================
+        // 9. 生徒：受講予約希望画面処理
+        // ==========================================
+        function renderStudentSubmitTable() {
+            const theadTr = document.getElementById('student-submit-thead-tr');
+            const tbody = document.getElementById('student-submit-tbody');
+
+            theadTr.innerHTML = '<th class="p-3 text-slate-500 font-medium">時間割 / コマ</th>';
+            DAYS.forEach(d => { theadTr.innerHTML += `<th class="p-3 text-center">${d}曜日</th>`; });
+
+            tbody.innerHTML = '';
+            const uid = state.currentUser.id;
+            const mySub = state.studentSubmissions[uid] || {};
+            const mySubjects = state.currentUser.subjects || [];
+
+            SLOTS.forEach(slot => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/50 transition";
+                tr.innerHTML = `<td class="p-3 font-medium text-slate-700 bg-slate-50/30">${slot.name}</td>`;
+
+                DAYS.forEach(day => {
+                    const key = `${day}-${slot.id}`;
+                    const selectedSubject = mySub[key] || "";
+                    
+                    let selectHtml = `<select data-key="${key}" class="student-select block w-full px-2 py-1 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-sky-500">`;
+                    selectHtml += `<option value="">-- 希望なし --</option>`;
+                    mySubjects.forEach(sub => {
+                        const sel = selectedSubject === sub ? 'selected' : '';
+                        selectHtml += `<option value="${sub}" ${sel}>${sub}</option>`;
+                    });
+                    selectHtml += `</select>`;
+
+                    // 選択済みならセルの背景を淡いブルーにするギミック
+                    const cellBg = selectedSubject ? 'bg-sky-50/70' : '';
+                    tr.innerHTML += `<td class="p-2 text-center ${cellBg}">${selectHtml}</td>`;
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function saveStudentSubmission() {
+            const uid = state.currentUser.id;
+            if (!state.studentSubmissions[uid]) state.studentSubmissions[uid] = {};
+
+            document.querySelectorAll('.student-select').forEach(sel => {
+                const key = sel.getAttribute('data-key');
+                state.studentSubmissions[uid][key] = sel.value;
+            });
+
+            saveToLocalStorage();
+            showToast("ローカルへ受講予約を保存しました。同期中...", "info");
+
+            const ok = await postToGas('saveStudentSubmissions', state.studentSubmissions);
+            if (ok) {
+                showToast("クラウドのスプレッドシートへ送信・同期しました", "success");
+            } else {
+                showToast("同期失敗。ローカルデータとして保持されます", "warning");
+            }
+            renderStudentSubmitTable(); // 背景色リフレッシュのため
+        }
+
+        // ==========================================
+        // 10. 全員共通：確定スケジュール閲覧画面
+        // ==========================================
+        function renderFixedScheduleTable() {
+            const theadTr = document.getElementById('view-schedule-thead-tr');
+            const tbody = document.getElementById('view-schedule-tbody');
+
+            theadTr.innerHTML = '<th class="p-3 text-slate-500 font-medium">時間割 / コマ</th>';
+            DAYS.forEach(d => { theadTr.innerHTML += `<th class="p-3 text-center">${d}曜日</th>`; });
+
+            tbody.innerHTML = '';
+            const user = state.currentUser;
+
+            SLOTS.forEach(slot => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/50 divide-x divide-slate-100";
+                tr.innerHTML = `<td class="p-3 font-medium text-slate-700 bg-slate-50/30 max-w-xs">${slot.name}</td>`;
+
+                DAYS.forEach(day => {
+                    const key = `${day}-${slot.id}`;
+                    const matches = state.fixedSchedule[key] || [];
+                    
+                    let cellHtml = "";
+
+                    if (user.role === 'manager') {
+                        // 管理者は該当マトリクスの全確定ペアを表示
+                        if (matches.length === 0) {
+                            cellHtml = `<span class="text-xs text-slate-300">-</span>`;
+                        } else {
+                            matches.forEach(m => {
+                                const tName = state.teachers.find(x => x.id === m.teacherId)?.name || m.teacherId;
+                                const sName = state.students.find(x => x.id === m.studentId)?.name || m.studentId;
+                                cellHtml += `
+                                    <div class="p-1 mb-1 last:mb-0 text-xxs border border-indigo-100 rounded bg-indigo-50/50 text-slate-700 text-left">
+                                        <div class="font-bold text-indigo-900">${m.subject}</div>
+                                        <div>先：${tName}</div>
+                                        <div>生：${sName}</div>
+                                    </div>
+                                `;
+                            });
+                        }
+                    } else if (user.role === 'teacher') {
+                        // 講師：自分の担当コマのみ抽出
+                        const myMatch = matches.find(m => m.teacherId === user.id);
+                        if (myMatch) {
+                            const sName = state.students.find(x => x.id === myMatch.studentId)?.name || myMatch.studentId;
+                            cellHtml = `
+                                <div class="p-2 text-xs border border-emerald-200 rounded-lg bg-emerald-50 text-emerald-900 text-left shadow-sm">
+                                    <div class="font-bold flex items-center"><i data-lucide="book-open" class="w-3 h-3 mr-1"></i>${myMatch.subject}</div>
+                                    <div class="text-slate-600 mt-0.5">生徒: <span class="font-semibold text-slate-800">${sName}</span></div>
+                                </div>
+                            `;
+                        } else { cellHtml = `<span class="text-slate-300">-</span>`; }
+                    } else if (user.role === 'student') {
+                        // 生徒：自分の授業のみ
+                        const myMatch = matches.find(m => m.studentId === user.id);
+                        if (myMatch) {
+                            const tName = state.teachers.find(x => x.id === myMatch.teacherId)?.name || myMatch.teacherId;
+                            cellHtml = `
+                                <div class="p-2 text-xs border border-sky-200 rounded-lg bg-sky-50 text-sky-900 text-left shadow-sm">
+                                    <div class="font-bold flex items-center"><i data-lucide="award" class="w-3 h-3 mr-1"></i>${myMatch.subject}</div>
+                                    <div class="text-slate-600 mt-0.5">先生: <span class="font-semibold text-slate-800">${tName}</span></div>
+                                </div>
+                            `;
+                        } else { cellHtml = `<span class="text-slate-300">-</span>`; }
+                    }
+
+                    tr.innerHTML += `<td class="p-2 text-center align-top">${cellHtml}</td>`;
+                });
+                tbody.appendChild(tr);
+            });
+            initLucide();
+        }
+
+        // ==========================================
+        // 11. 教室長：スマートマッチングエンジン（アルゴリズム）
+        // ==========================================
+        let tempMatchingBoard = {}; // 確定前の一時保持
+
+        function renderMatchingBoard() {
+            const theadTr = document.getElementById('matching-thead-tr');
+            const tbody = document.getElementById('matching-tbody');
+
+            theadTr.innerHTML = '<th class="p-3 text-slate-500 font-medium w-40">時間割 / コマ</th>';
+            DAYS.forEach(d => { theadTr.innerHTML += `<th class="p-3 text-center min-w-[150px]">${d}曜日</th>`; });
+
+            tbody.innerHTML = '';
+            
+            SLOTS.forEach(slot => {
+                const tr = document.createElement('tr');
+                tr.className = "divide-x divide-slate-100 align-top";
+                tr.innerHTML = `<td class="p-3 font-semibold text-slate-700 bg-slate-50/50">${slot.name}</td>`;
+
+                DAYS.forEach(day => {
+                    const key = `${day}-${slot.id}`;
+                    const currentMatches = tempMatchingBoard[key] || state.fixedSchedule[key] || [];
+                    
+                    let cellHtml = `<div class="space-y-1.5" data-cell-key="${key}">`;
+                    
+                    if (currentMatches.length === 0) {
+                        cellHtml += `<p class="text-xs text-slate-400 italic text-center py-4">未配置</p>`;
+                    } else {
+                        currentMatches.forEach((m, idx) => {
+                            const tName = state.teachers.find(x => x.id === m.teacherId)?.name || m.teacherId;
+                            const sName = state.students.find(x => x.id === m.studentId)?.name || m.studentId;
+                            cellHtml += `
+                                <div class="p-2 text-xs border border-violet-200 rounded-lg bg-violet-50 text-slate-700 relative shadow-sm group">
+                                    <button onclick="removeMatchPair('${key}', ${idx})" class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition w-4 h-4 bg-rose-500 text-white rounded-full flex items-center justify-center text-xxs hover:bg-rose-600" title="削除">×</button>
+                                    <div class="font-bold text-violet-800 flex items-center justify-between">
+                                        <span>${m.subject}</span>
+                                        <span class="text-xxs font-normal px-1 bg-violet-200/50 text-violet-700 rounded">1:1</span>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-0.5 mt-1 text-xxs text-slate-600">
+                                        <div><span class="text-emerald-600 font-bold">講師:</span> ${tName}</div>
+                                        <div><span class="text-sky-600 font-bold">生徒:</span> ${sName}</div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    // 手動追加用ミニセクション
+                    cellHtml += `
+                        <div class="pt-1.5 border-t border-slate-100/50 mt-1">
+                            <button onclick="openManualAddForm('${key}')" class="w-full py-1 border border-dashed border-slate-300 text-slate-400 hover:text-indigo-600 hover:border-indigo-400 text-xxs rounded transition flex items-center justify-center space-x-0.5">
+                                <i data-lucide="plus" class="w-3 h-3"></i><span>手動でペアを追加</span>
+                            </button>
+                        </div>
+                    `;
+
+                    cellHtml += `</div>`;
+                    tr.innerHTML += `<td class="p-2 bg-white">${cellHtml}</td>`;
+                });
+                tbody.appendChild(tr);
+            });
+            initLucide();
+        }
+
+        // 1対1型自動割付アルゴリズム
+        function runMatchingAlgorithm() {
+            // 現状をコピーして初期化
+            tempMatchingBoard = {};
+            DAYS.forEach(day => {
+                SLOTS.forEach(slot => {
+                    tempMatchingBoard[`${day}-${slot.id}`] = [];
+                });
+            });
+
+            // コマ(曜日-スロット)ごとにマッチングを完全独立計算
+            DAYS.forEach(day => {
+                SLOTS.forEach(slot => {
+                    const key = `${day}-${slot.id}`;
+                    
+                    // 1. そのコマに出勤可能な講師をリストアップ
+                    let availableTeachers = state.teachers.filter(t => {
+                        return state.teacherSubmissions[t.id] && state.teacherSubmissions[t.id][key] === true;
+                    });
+
+                    // 2. そのコマに受講希望がある生徒をリストアップ
+                    let demandingStudents = state.students.filter(s => {
+                        return state.studentSubmissions[s.id] && state.studentSubmissions[s.id][key] && state.studentSubmissions[s.id][key] !== "";
+                    }).map(s => ({
+                        id: s.id,
+                        subject: state.studentSubmissions[s.id][key]
+                    }));
+
+                    // 3. マッチング処理（講師の得意科目と生徒の希望科目の合致を判定）
+                    let usedTeacherIds = new Set();
+
+                    demandingStudents.forEach(stu => {
+                        // まだこのコマでアサインされておらず、かつ生徒の希望科目を教えられる講師を1名見つける
+                        const matchTeacher = availableTeachers.find(t => 
+                            !usedTeacherIds.has(t.id) && t.subjects.includes(stu.subject)
+                        );
+
+                        if (matchTeacher) {
+                            tempMatchingBoard[key].push({
+                                teacherId: matchTeacher.id,
+                                studentId: stu.id,
+                                subject: stu.subject
+                            });
+                            usedTeacherIds.add(matchTeacher.id); // 講師はこのコマ塞がる
+                        }
+                    });
+                });
+            });
+
+            showToast("AI自動マッチング試算が完了しました（確定ボタンを押すまで保存されません）", "success");
+            renderMatchingBoard();
+        }
+
+        window.removeMatchPair = function(key, idx) {
+            if (!tempMatchingBoard[key]) {
+                tempMatchingBoard[key] = [...(state.fixedSchedule[key] || [])];
+            }
+            tempMatchingBoard[key].splice(idx, 1);
+            renderMatchingBoard();
+        };
+
+        window.openManualAddForm = function(key) {
+            const teacherId = prompt("講師IDを入力してください（例: T001）");
+            if (!teacherId) return;
+            const studentId = prompt("生徒IDを入力してください（例: S001）");
+            if (!studentId) return;
+            const subject = prompt("科目を入力してください（例: 英語）");
+            if (!subject) return;
+
+            if (!tempMatchingBoard[key]) {
+                tempMatchingBoard[key] = [...(state.fixedSchedule[key] || [])];
+            }
+            
+            tempMatchingBoard[key].push({
+                teacherId: teacherId,
+                studentId: studentId,
+                subject: subject
+            });
+            renderMatchingBoard();
+        };
+
+        async function commitMatchingSchedule() {
+            // 一時ボードの内容を確定状態へ反映
+            // まだ一度も自動マッチングを走らせていない（空）なら確定処理をスキップ
+            if (Object.keys(tempMatchingBoard).length === 0) {
+                showToast("変更内容がありません", "info");
+                return;
+            }
+
+            state.fixedSchedule = { ...tempMatchingBoard };
+            saveToLocalStorage();
+            showToast("ローカルのスケジュールを更新しました。クラウド同期中...", "info");
+
+            const ok = await postToGas('saveFixedSchedule', state.fixedSchedule);
+            if (ok) {
+                showToast("全ユーザーへ最新の確定シフトを公開・同期しました！", "success");
+            } else {
+                showToast("クラウド同期に失敗。ローカルのみで確定しました", "warning");
+            }
+            tempMatchingBoard = {};
+            renderMatchingBoard();
+        }
+
+        // ==========================================
+        // 12. ユーティリティ（通知トースト表示）
+        // ==========================================
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bg = "bg-white border-slate-200 text-slate-800";
+            let icon = "info";
+            
+            if (type === "success") { bg = "bg-emerald-600 text-white border-emerald-500"; icon = "check-circle"; }
+            else if (type === "warning") { bg = "bg-amber-500 text-white border-amber-400"; icon = "alert-triangle"; }
+            else if (type === "danger") { bg = "bg-rose-600 text-white border-rose-500"; icon = "alert-circle"; }
+            else if (type === "info") { bg = "bg-indigo-900 text-white border-indigo-800"; icon = "info"; }
+
+            toast.className = `flex items-center space-x-2.5 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto max-w-sm ${bg}`;
+            toast.innerHTML = `
+                <i data-lucide="${icon}" class="w-5 h-5 shrink-0"></i>
+                <span class="text-xs font-medium leading-normal">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            initLucide();
+
+            // アニメーション表示
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            // 自動消去
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-1');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
