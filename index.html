@@ -1,581 +1,198 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>塾シフト連携システム v13 完全版</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { -webkit-tap-highlight-color: transparent; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .pin-input::placeholder { letter-spacing: normal; font-size: 0.875rem; text-align: center; }
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen select-none">
+const SHEETS = {
+  demoLessons: {
+    name: '体験授業',
+    key: 'demoId',
+    headers: ['demoId','date','arrivalTime','lessonStartTime','studentName','grade','subject','assignedTeacherId','status','confirmedAt','schoolName','managerMemo','parentNotes','enrollmentResult','remarks','createdAt','updatedAt']
+  },
+  staffShifts: {
+    name: '確定シフト',
+    key: 'shiftId',
+    headers: ['shiftId','requestId','teacherId','teacherName','date','startTime','endTime','status','publishedAt','createdAt','updatedAt']
+  },
+  shiftRequests: {
+    name: 'シフト希望',
+    key: 'requestId',
+    headers: ['requestId','teacherId','month','date','startTime','endTime','type','status','createdAt','updatedAt']
+  },
+  demoApplications: {
+    name: '体験応募',
+    key: 'applicationId',
+    headers: ['applicationId','demoId','teacherId','status','createdAt','updatedAt']
+  },
+  managerAbsences: {
+    name: '教室長不在日',
+    key: 'absenceId',
+    headers: ['absenceId','date','createdAt','updatedAt']
+  }
+};
 
-<div id="app-container" class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative transition-all duration-300">
-
-    <header id="app-header" class="bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40 shadow-sm hidden">
-        <div class="flex items-center gap-2">
-            <i class="fa-solid fa-graduation-cap text-blue-400 text-lg"></i>
-            <span class="font-bold text-sm" id="header-title">塾シフト連携 v13</span>
-        </div>
-        <div class="flex items-center gap-3">
-            <span id="user-badge" class="text-xs bg-blue-600/80 px-2.5 py-1 rounded-full font-bold"></span>
-            <button onclick="logoutTeacher()" class="text-slate-400 hover:text-white text-xs font-bold transition">
-                <i class="fa-solid fa-right-from-bracket"></i> ログアウト
-            </button>
-        </div>
-    </header>
-
-    <div id="auth-section" class="flex-1 flex flex-col justify-center items-center p-6 bg-slate-50 w-full">
-        <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <div class="text-center mb-6">
-                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">🏫</div>
-                <h2 class="text-base font-bold text-slate-900">塾シフト連携システム</h2>
-                <p class="text-[11px] text-slate-500 mt-0.5">教室長(PC) ✕ 講師(スマホ) 自動最適化</p>
-            </div>
-            
-            <div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6">
-                <button id="auth-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-slate-900 shadow-sm transition">🔑 ログイン</button>
-                <button id="auth-tab-reg" onclick="switchAuthTab('reg')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition">👤 初めての方</button>
-            </div>
-
-            <div id="auth-form-login" class="space-y-4">
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 mb-1 text-center">4桁の暗証番号を入力（教室長は0000）</label>
-                    <div class="relative max-w-[160px] mx-auto">
-                        <input type="password" id="login-pin" maxlength="4" placeholder="4桁の番号" class="pin-input w-full p-3 border-2 border-blue-500 rounded-xl text-xl text-center tracking-[0.3em] font-bold focus:outline-none focus:ring-4 focus:ring-blue-50">
-                        <button type="button" onclick="togglePinVisibility('login-pin', this)" class="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600">
-                            <i class="fa-solid fa-eye text-sm"></i>
-                        </button>
-                    </div>
-                </div>
-                <button onclick="loginTeacher()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition shadow-sm active:scale-[0.98]">ログイン</button>
-                <div class="text-center pt-2">
-                    <button onclick="showForgotPasswordModal()" class="text-xs text-slate-400 underline font-medium">暗証番号を忘れた方はこちら</button>
-                </div>
-            </div>
-
-            <div id="auth-form-reg" class="space-y-4 hidden">
-                <p class="text-[11px] text-emerald-600 font-bold text-center bg-emerald-50 py-2 rounded-lg">最初にお名前と好きな4桁を登録します</p>
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">お名前</label>
-                        <input type="text" id="reg-name" placeholder="例：湯浅" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-emerald-500">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">好きな暗証番号（4桁）</label>
-                        <div class="relative">
-                            <input type="password" id="reg-pin" maxlength="4" placeholder="忘れない4桁" class="pin-input w-full p-2.5 border border-slate-300 rounded-lg text-sm text-center tracking-[0.2em] font-bold focus:outline-none focus:border-emerald-500">
-                            <button type="button" onclick="togglePinVisibility('reg-pin', this)" class="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
-                                <i class="fa-solid fa-eye text-sm"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="registerTeacher()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition shadow-sm active:scale-[0.98]">登録してログイン</button>
-            </div>
-        </div>
-    </div>
-
-    <main id="main-content" class="flex-1 p-4 overflow-y-auto hidden bg-slate-50 custom-scrollbar">
-        
-        <div id="tab-content-demo" class="space-y-4 hidden">
-            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl p-4 shadow-sm">
-                <h3 class="font-bold text-sm flex items-center gap-1.5"><i class="fa-solid fa-bullhorn"></i> 体験授業の募集一覧</h3>
-                <p class="text-[11px] text-blue-100 mt-1">立候補・取消がここですぐに行えます。確定するとボードでお知らせします。</p>
-            </div>
-            <div id="instructor-notice-board" class="bg-emerald-50 border-2 border-emerald-500 rounded-xl p-3 shadow-sm hidden">
-                <h4 class="text-emerald-800 font-bold text-xs flex items-center gap-1.5 mb-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> 🎉 担当確定のお知らせ</h4>
-                <div id="notice-list" class="space-y-1 text-[11px] text-emerald-900 font-medium pl-1"></div>
-            </div>
-            <div id="demo-jobs-list-container" class="space-y-3"></div>
-        </div>
-
-        <div id="tab-content-shift" class="space-y-4 hidden">
-            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-calendar-plus text-blue-500"></i> 希望シフト一括提出</h3>
-                <p class="text-[11px] text-slate-500 mb-3">出勤可能日をカレンダーからタップして、まとめて送信できます。</p>
-                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 mx-auto max-w-xs">
-                    <div class="flex justify-between items-center mb-2">
-                        <button onclick="changeCalendarMonth(-1)" class="py-1 px-2 bg-white border border-slate-300 rounded text-[11px] font-bold">◀</button>
-                        <span id="shift-month-title" class="font-bold text-xs text-slate-800">2026年7月</span>
-                        <button onclick="changeCalendarMonth(1)" class="py-1 px-2 bg-white border border-slate-300 rounded text-[11px] font-bold">▶</button>
-                    </div>
-                    <div class="grid grid-cols-7 gap-1 text-center text-[9px] font-bold text-slate-400 mb-1">
-                        <div class="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-400">土</div>
-                    </div>
-                    <div id="shift-monthly-grid" class="grid grid-cols-7 gap-1 text-center"></div>
-                </div>
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">🕐 開始</label>
-                        <select id="staff-start" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"></select>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">🕔 終了</label>
-                        <select id="staff-end" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"></select>
-                    </div>
-                </div>
-                <button onclick="submitStaffRequests()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow transition active:scale-95">✨ 希望シフトを送信する</button>
-            </div>
-        </div>
-
-        <div id="tab-content-confirm" class="space-y-4 hidden">
-            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">📅 日にち別の出勤・体験状況</h3>
-            <div id="daily-timeline-container" class="space-y-3"></div>
-        </div>
-
-        <div id="tab-content-manager-pc" class="hidden h-full">
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                
-                <div class="md:col-span-5 space-y-4">
-                    <div class="bg-orange-600 text-white p-4 rounded-xl shadow-sm">
-                        <h3 class="font-bold text-sm flex items-center gap-1.5"><i class="fa-solid fa-crown"></i> 教室長 操作パネル</h3>
-                        <p class="text-[11px] text-orange-100 mt-1">体験募集、不在カレンダー、講師のパスワード照会はこちら。</p>
-                    </div>
-
-                    <div class="flex gap-1 bg-orange-100 p-1 rounded-xl">
-                        <button onclick="switchManagerSubTab('demo-reg')" id="m-subtab-demo" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-orange-600 text-white transition">① 体験登録</button>
-                        <button onclick="switchManagerSubTab('absent-reg')" id="m-subtab-absent" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-orange-800 transition">② 不在設定</button>
-                        <button onclick="switchManagerSubTab('pw-manage')" id="m-subtab-pw" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-orange-800 transition">🔑 暗証番号管理</button>
-                    </div>
-
-                    <div id="m-panel-demo-reg" class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm">
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-600 mb-0.5">📅 日付</label>
-                                <input type="date" id="m-demo-date" class="w-full p-2 border border-slate-300 rounded-lg text-xs focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-600 mb-0.5">🕐 来校・時間枠</label>
-                                <input type="text" id="m-demo-time" placeholder="16:00〜17:20" class="w-full p-2 border border-slate-300 rounded-lg text-xs focus:outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-600 mb-1">🏷️ クイックスタンプ</label>
-                            <div class="flex gap-1 flex-wrap">
-                                <button onclick="addStamp('小6')" class="py-1 px-2 bg-slate-50 border rounded text-[10px] font-bold">小6</button>
-                                <button onclick="addStamp('中3')" class="py-1 px-2 bg-slate-50 border rounded text-[10px] font-bold">中3</button>
-                                <button onclick="addStamp('高3')" class="py-1 px-2 bg-slate-50 border rounded text-[10px] font-bold">高3</button>
-                                <button onclick="addStamp('数学')" class="py-1 px-2 bg-white border text-blue-600 rounded text-[10px] font-bold">数学</button>
-                                <button onclick="addStamp('英語')" class="py-1 px-2 bg-white border text-red-600 rounded text-[10px] font-bold">英語</button>
-                                <button onclick="addStamp('国語')" class="py-1 px-2 bg-white border text-emerald-600 rounded text-[10px] font-bold">国語</button>
-                            </div>
-                        </div>
-                        <input type="text" id="m-demo-subject" placeholder="スタンプを押すか内容を入力" class="w-full p-2.5 border-2 border-orange-500 rounded-lg text-xs font-bold focus:outline-none">
-                        <button onclick="submitManagerDemo()" class="w-full py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg shadow transition">体験授業の募集を開始</button>
-                    </div>
-
-                    <div id="m-panel-absent-reg" class="bg-white border border-slate-200 rounded-xl p-4 hidden shadow-sm">
-                        <p class="text-[11px] text-slate-500 mb-2 text-center font-bold">教室長不在（体験不可）の日をタップして保存</p>
-                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3 mx-auto max-w-xs">
-                            <div id="absent-monthly-grid" class="grid grid-cols-7 gap-1 text-center"></div>
-                        </div>
-                        <button onclick="saveManagerAbsents()" class="w-full py-2.5 bg-orange-600 text-white text-xs font-bold rounded-lg shadow">不在日を保存</button>
-                    </div>
-
-                    <div id="m-panel-pw-manage" class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 hidden shadow-sm">
-                        <div class="border-b pb-1.5">
-                            <h4 class="font-bold text-xs text-slate-800"><i class="fa-solid fa-users-gear mr-1"></i> 講師の暗証番号 一覧</h4>
-                        </div>
-                        <div id="teacher-pw-list-container" class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-7">
-                    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5"><i class="fa-solid fa-list-check text-orange-600"></i> 日にち別 体験募集 ＆ 講師シフト希望状況</h3>
-                        <div id="pc-timeline-container" class="space-y-3 max-h-[750px] overflow-y-auto pr-1 custom-scrollbar"></div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-    </main>
-
-    <nav id="bottom-nav-bar" class="absolute bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] hidden">
-        <button id="nav-btn-demo" onclick="switchMainTab('demo')" class="flex flex-col items-center justify-center w-20 h-full text-blue-600 transition">
-            <i class="fa-solid fa-person-chalkboard text-lg"></i><span class="text-[10px] font-bold mt-1">体験授業</span>
-        </button>
-        <button id="nav-btn-shift" onclick="switchMainTab('shift')" class="flex flex-col items-center justify-center w-20 h-full text-slate-400 transition">
-            <i class="fa-solid fa-calendar-day text-lg"></i><span class="text-[10px] font-bold mt-1">シフト提出</span>
-        </button>
-        <button id="nav-btn-confirm" onclick="switchMainTab('confirm')" class="flex flex-col items-center justify-center w-20 h-full text-slate-400 transition">
-            <i class="fa-solid fa-list-check text-lg"></i><span class="text-[10px] font-bold mt-1">確認一覧</span>
-        </button>
-    </nav>
-
-</div>
-
-<div id="forgot-password-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl p-5 max-w-xs w-full shadow-xl text-center">
-        <div class="w-10 h-10 bg-amber-100 text-amber-700 text-lg rounded-full flex items-center justify-center mx-auto mb-3">❓</div>
-        <h3 class="font-bold text-slate-900 text-sm mb-2">暗証番号を忘れた場合</h3>
-        <p class="text-xs text-slate-600 leading-relaxed mb-4">
-            セキュリティ保護のため自動再発行は行えません。<br><br>
-            教室長に**「管理画面の『暗証番号管理』から自分の4桁を確認してほしい」**と口頭やLINE等で伝えてください。
-        </p>
-        <button onclick="hideForgotPasswordModal()" class="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">閉じる</button>
-    </div>
-</div>
-
-<script>
-    const timeOptions = [
-        "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", 
-        "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30"
-    ];
-
-    let teacherDatabase = JSON.parse(localStorage.getItem('teacherDB_v13')) || { "1234": "湯浅 先生", "5678": "山田 先生", "0000": "教室長" };
-    let allRequests = JSON.parse(localStorage.getItem('shiftRequests_v13')) || [
-        { id: "sample1", name: "湯浅 先生", dateStr: "7/10(金)", dateValue: "2026-07-10", timeStr: "17:00 〜 21:00", role: "通常出勤可能" },
-        { id: "sample2", name: "山田 先生", dateStr: "7/10(金)", dateValue: "2026-07-10", timeStr: "16:00 〜 19:30", role: "通常出勤可能" }
-    ];
-    let managerAbsentDates = JSON.parse(localStorage.getItem('managerAbsentDates_v13')) || [];
-    let managerDemoJobs = JSON.parse(localStorage.getItem('managerDemoJobs_v13')) || [
-        { id: "sample_j1", dateValue: "2026-07-10", timeStr: "16:30〜17:50", subject: "体験: 中3 数学", candidates: ["湯浅 先生"], assignedTeacher: "" }
-    ]; 
-
-    let loggedInUser = ""; 
-    let currentCalYear = 2026; let currentCalMonth = 7; 
-    let tempSelectedStaffDates = []; let tempSelectedAbsents = []; 
-
-    function togglePinVisibility(inputId, btn) {
-        const input = document.getElementById(inputId); const icon = btn.querySelector('i');
-        if (input.type === "password") { input.type = "text"; icon.className = "fa-solid fa-eye-slash text-sm text-blue-500"; }
-        else { input.type = "password"; icon.className = "fa-solid fa-eye text-sm text-slate-400"; }
-    }
-    function showForgotPasswordModal() { document.getElementById('forgot-password-modal').classList.remove('hidden'); }
-    function hideForgotPasswordModal() { document.getElementById('forgot-password-modal').classList.add('hidden'); }
-
-    function switchAuthTab(mode) {
-        const tabLogin = document.getElementById('auth-tab-login'); const tabReg = document.getElementById('auth-tab-reg');
-        const formLogin = document.getElementById('auth-form-login'); const formReg = document.getElementById('auth-form-reg');
-        if (mode === 'login') {
-            tabLogin.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-slate-900 shadow-sm transition";
-            tabReg.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition";
-            formLogin.classList.remove('hidden'); formReg.classList.add('hidden');
-        } else {
-            tabReg.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-slate-900 shadow-sm transition";
-            tabLogin.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition";
-            formLogin.classList.add('hidden'); formReg.classList.remove('hidden');
-        }
-    }
-
-    function loginTeacher() {
-        const pin = document.getElementById('login-pin').value;
-        if (teacherDatabase[pin]) { loggedInUser = teacherDatabase[pin]; finalizeLogin(pin === "0000"); } 
-        else { alert("❌ 暗証番号が正しくありません。"); }
-    }
-
-    document.getElementById('login-pin').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') loginTeacher();
+function doGet(e) {
+  setupSheets_();
+  const action = (e.parameter.action || 'loadAll');
+  const type = e.parameter.type || '';
+  if (type === 'demo') return json_({ ok: true, demoLessons: readSheet_(SHEETS.demoLessons) });
+  if (type === 'shift') return json_({ ok: true, staffShifts: readSheet_(SHEETS.staffShifts) });
+  if (type === 'absent') return json_({ ok: true, managerAbsences: readSheet_(SHEETS.managerAbsences) });
+  if (action === 'loadAll') {
+    return json_({
+      ok: true,
+      demoLessons: readSheet_(SHEETS.demoLessons),
+      staffShifts: readSheet_(SHEETS.staffShifts),
+      shiftRequests: readSheet_(SHEETS.shiftRequests),
+      demoApplications: readSheet_(SHEETS.demoApplications),
+      managerAbsences: readSheet_(SHEETS.managerAbsences)
     });
+  }
+  return json_({ ok: false, error: 'Unknown action: ' + action });
+}
 
-    function registerTeacher() {
-        const name = document.getElementById('reg-name').value.trim(); const pin = document.getElementById('reg-pin').value.trim();
-        if (!name || pin.length !== 4) { alert("❌ 入力内容が不正です。"); return; }
-        if (teacherDatabase[pin] || pin === "0000") { alert("❌ その暗証番号は使用されています。"); return; }
-        
-        teacherDatabase[pin] = name + " 先生";
-        localStorage.setItem('teacherDB_v13', JSON.stringify(teacherDatabase));
-        alert(`✨ 登録完了！\n\nあなたのログイン番号は【 ${pin} 】です。`);
-        loggedInUser = name + " 先生"; finalizeLogin(false);
+function doPost(e) {
+  setupSheets_();
+  const body = JSON.parse(e.postData.contents || '{}');
+  const action = body.action;
+  const payload = body.payload || {};
+
+  if (action === 'upsertDemoLesson') {
+    upsertRow_(SHEETS.demoLessons, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'updateDemoStatus') {
+    patchRow_(SHEETS.demoLessons, payload.demoId, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertDemoApplication') {
+    upsertRow_(SHEETS.demoApplications, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteDemoApplication') {
+    deleteRow_(SHEETS.demoApplications, payload.applicationId);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertShift') {
+    upsertRow_(SHEETS.staffShifts, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteShift') {
+    deleteRow_(SHEETS.staffShifts, payload.shiftId);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertManagerAbsence') {
+    upsertRow_(SHEETS.managerAbsences, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteManagerAbsence') {
+    deleteRow_(SHEETS.managerAbsences, payload.absenceId);
+    return json_({ ok: true });
+  }
+  if (action === 'replaceManagerAbsences') {
+    replaceSheet_(SHEETS.managerAbsences, payload.managerAbsences || []);
+    return json_({ ok: true });
+  }
+  if (action === 'saveAll') {
+    replaceSheet_(SHEETS.demoLessons, payload.demoLessons || []);
+    replaceSheet_(SHEETS.staffShifts, payload.staffShifts || []);
+    replaceSheet_(SHEETS.shiftRequests, payload.shiftRequests || []);
+    replaceSheet_(SHEETS.demoApplications, payload.demoApplications || []);
+    replaceSheet_(SHEETS.managerAbsences, payload.managerAbsences || []);
+    return json_({ ok: true });
+  }
+  return json_({ ok: false, error: 'Unknown action: ' + action });
+}
+
+function setupSheets_() {
+  Object.keys(SHEETS).forEach(function(key) {
+    const cfg = SHEETS[key];
+    const sheet = getSheet_(cfg.name);
+    const firstRow = sheet.getRange(1, 1, 1, cfg.headers.length).getValues()[0];
+    if (firstRow.join('') === '') {
+      sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+      sheet.setFrozenRows(1);
     }
+  });
+}
 
-    function finalizeLogin(isManager) {
-        const container = document.getElementById('app-container');
-        document.getElementById('user-badge').innerText = loggedInUser;
-        document.getElementById('auth-section').classList.add('hidden');
-        document.getElementById('app-header').classList.remove('hidden');
-        document.getElementById('main-content').classList.remove('hidden');
+function getSheet_(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
 
-        if (isManager) {
-            container.className = "max-w-6xl mx-auto bg-white min-h-screen shadow-xl flex flex-col relative transition-all duration-300";
-            document.getElementById('bottom-nav-bar').classList.add('hidden');
-            document.getElementById('tab-content-demo').classList.add('hidden');
-            document.getElementById('tab-content-shift').classList.add('hidden');
-            document.getElementById('tab-content-confirm').classList.add('hidden');
-            document.getElementById('tab-content-manager-pc').classList.remove('hidden');
-            setupInitialLayout();
-            switchManagerSubTab('demo-reg');
-            renderPCCombinedTimeline();
-        } else {
-            container.className = "max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative transition-all duration-300";
-            document.getElementById('bottom-nav-bar').classList.remove('hidden');
-            document.getElementById('tab-content-manager-pc').classList.add('hidden');
-            setupInitialLayout();
-            switchMainTab('demo');
-        }
-    }
+function readSheet_(cfg) {
+  const sheet = getSheet_(cfg.name);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+  const headers = values[0];
+  return values.slice(1).filter(function(row) {
+    return row.some(function(cell) { return cell !== ''; });
+  }).map(function(row) {
+    const item = {};
+    headers.forEach(function(header, i) {
+      item[header] = formatCell_(header, row[i]);
+    });
+    return item;
+  });
+}
 
-    function logoutTeacher() {
-        loggedInUser = ""; const container = document.getElementById('app-container');
-        container.className = "max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative";
-        document.getElementById('login-pin').value = "";
-        document.getElementById('auth-section').classList.remove('hidden');
-        document.getElementById('app-header').classList.add('hidden');
-        document.getElementById('main-content').classList.add('hidden');
-        document.getElementById('bottom-nav-bar').classList.add('hidden');
-    }
+function formatCell_(header, value) {
+  if (!(value instanceof Date)) return value;
+  if (header === 'date') {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  if (header.indexOf('Time') >= 0) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm');
+  }
+  return value.toISOString();
+}
 
-    function switchMainTab(target) {
-        ['demo', 'shift', 'confirm'].forEach(t => {
-            document.getElementById(`tab-content-${t}`).classList.add('hidden');
-            document.getElementById(`nav-btn-${t}`).className = "flex flex-col items-center justify-center w-20 h-full text-slate-400 transition";
-        });
-        document.getElementById(`tab-content-${target}`).classList.remove('hidden');
-        document.getElementById(`nav-btn-${target}`).className = "flex flex-col items-center justify-center w-20 h-full text-blue-600 transition";
-        if(target === 'demo') renderDemoJobsTab();
-        if(target === 'shift') renderStaffShiftTab();
-        if(target === 'confirm') renderConfirmTimelineTab();
-    }
+function upsertRow_(cfg, item) {
+  const keyValue = item[cfg.key];
+  if (!keyValue) throw new Error(cfg.key + ' is required');
+  const sheet = getSheet_(cfg.name);
+  const rowIndex = findRowIndex_(sheet, cfg.key, keyValue);
+  const row = cfg.headers.map(function(header) { return item[header] || ''; });
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, cfg.headers.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+}
 
-    function setupInitialLayout() {
-        const startSelect = document.getElementById('staff-start'); const endSelect = document.getElementById('staff-end');
-        if(startSelect && endSelect) {
-            startSelect.innerHTML = ''; endSelect.innerHTML = '';
-            timeOptions.forEach((time, index) => {
-                if(index < timeOptions.length - 1) startSelect.innerHTML += `<option value="${time}">${time}</option>`;
-                if(index > 0) endSelect.innerHTML += `<option value="${time}">${time}</option>`;
-            });
-            endSelect.value = "21:00";
-        }
-        const todayStr = new Date().toISOString().split('T')[0];
-        if(document.getElementById('m-demo-date')) document.getElementById('m-demo-date').value = todayStr;
-        tempSelectedAbsents = [...managerAbsentDates];
-    }
+function patchRow_(cfg, keyValue, patch) {
+  if (!keyValue) throw new Error(cfg.key + ' is required');
+  const current = readSheet_(cfg).find(function(row) { return String(row[cfg.key]) === String(keyValue); }) || {};
+  upsertRow_(cfg, Object.assign(current, patch));
+}
 
-    function renderDemoJobsTab() {
-        const container = document.getElementById('demo-jobs-list-container'); if (!container) return; container.innerHTML = "";
-        const noticeBoard = document.getElementById('instructor-notice-board'); const noticeList = document.getElementById('notice-list');
-        const myConfirmed = managerDemoJobs.filter(j => j.assignedTeacher === loggedInUser);
-        if (myConfirmed.length > 0) {
-            noticeList.innerHTML = "";
-            myConfirmed.forEach(j => { noticeList.innerHTML += `<div>📍 <strong>${j.dateValue.replace('2026-','')}</strong>: ${j.subject} 確定！</div>`; });
-            noticeBoard.classList.remove('hidden');
-        } else { noticeBoard.classList.add('hidden'); }
+function deleteRow_(cfg, keyValue) {
+  const sheet = getSheet_(cfg.name);
+  const rowIndex = findRowIndex_(sheet, cfg.key, keyValue);
+  if (rowIndex > 0) sheet.deleteRow(rowIndex);
+}
 
-        let activeJobs = [...managerDemoJobs];
-        activeJobs.sort((a,b) => (a.assignedTeacher?1:0) - (b.assignedTeacher?1:0) || a.dateValue.localeCompare(b.dateValue));
-        if (activeJobs.length === 0) {
-            container.innerHTML = `<div class="text-center py-10 text-xs text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">募集中の体験授業はありません。</div>`; return;
-        }
-        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
-        activeJobs.forEach(job => {
-            const d = new Date(job.dateValue); const dateStr = `${d.getMonth()+1}/${d.getDate()}(${dayLabels[d.getDay()]})`;
-            const card = document.createElement('div'); card.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3";
-            let badgeHTML = job.assignedTeacher ? (job.assignedTeacher === loggedInUser ? `<span class="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">🎯 あなたに確定</span>` : `<span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded">🔒 他ので確定</span>`) : `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded">⏳ 募集中</span>`;
-            let actionBtnHTML = "";
-            if (!job.assignedTeacher) {
-                if (job.candidates.includes(loggedInUser)) {
-                    actionBtnHTML = `<div class="flex items-center gap-1.5"><span class="text-xs text-blue-600 font-bold"><i class="fa-solid fa-check"></i> 立候補中</span><button onclick="cancelVolunteer('${job.id}')" class="py-1 px-2 bg-red-50 text-red-600 border border-red-200 rounded text-xs font-bold">取消</button></div>`;
-                } else { actionBtnHTML = `<button onclick="volunteerJob('${job.id}')" class="py-1.5 px-3 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold">🙋 立候補する</button>`; }
-            }
-            card.innerHTML = `<div class="flex justify-between items-start"><div><div class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><span class="text-blue-600"><i class="fa-regular fa-calendar"></i> ${dateStr}</span><span class="text-slate-400 text-[11px] font-medium">${job.timeStr}</span></div><h4 class="text-sm font-black text-slate-900 mt-1">${job.subject}</h4></div></div><div class="flex items-center justify-between pt-1">${badgeHTML}${actionBtnHTML}</div>`;
-            container.appendChild(card);
-        });
-    }
+function replaceSheet_(cfg, items) {
+  const sheet = getSheet_(cfg.name);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+  if (items.length) {
+    const rows = items.map(function(item) {
+      return cfg.headers.map(function(header) { return item[header] || ''; });
+    });
+    sheet.getRange(2, 1, rows.length, cfg.headers.length).setValues(rows);
+  }
+}
 
-    function volunteerJob(id) {
-        const job = managerDemoJobs.find(j => j.id === id);
-        if(job && !job.candidates.includes(loggedInUser)) { job.candidates.push(loggedInUser); localStorage.setItem('managerDemoJobs_v13', JSON.stringify(managerDemoJobs)); renderDemoJobsTab(); }
-    }
-    function cancelVolunteer(id) {
-        const job = managerDemoJobs.find(j => j.id === id);
-        if(job && confirm("立候補を取り消しますか？")) { job.candidates = job.candidates.filter(c => c !== loggedInUser); localStorage.setItem('managerDemoJobs_v13', JSON.stringify(managerDemoJobs)); renderDemoJobsTab(); }
-    }
+function findRowIndex_(sheet, keyHeader, keyValue) {
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) return -1;
+  const keyCol = values[0].indexOf(keyHeader);
+  if (keyCol < 0) return -1;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][keyCol]) === String(keyValue)) return i + 1;
+  }
+  return -1;
+}
 
-    function renderStaffShiftTab() {
-        const grid = document.getElementById('shift-monthly-grid'); const title = document.getElementById('shift-month-title');
-        if(!grid || !title) return; grid.innerHTML = ""; title.innerText = `${currentCalYear}年 ${currentCalMonth}月`;
-        const firstDayIndex = new Date(currentCalYear, currentCalMonth - 1, 1).getDay();
-        const totalDays = new Date(currentCalYear, currentCalMonth, 0).getDate();
-        for (let i = 0; i < firstDayIndex; i++) { grid.appendChild(document.createElement('div')); }
-        for (let day = 1; day <= totalDays; day++) {
-            const cell = document.createElement('div'); const dateStr = `${currentCalYear}-${String(currentCalMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            cell.innerText = day; cell.className = `py-2 text-xs font-bold rounded-lg cursor-pointer border ${tempSelectedStaffDates.includes(dateStr) ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-800 hover:bg-slate-100'}`;
-            cell.onclick = () => {
-                if (tempSelectedStaffDates.includes(dateStr)) { tempSelectedStaffDates = tempSelectedStaffDates.filter(d => d !== dateStr); }
-                else { tempSelectedStaffDates.push(dateStr); } renderStaffShiftTab();
-            };
-            grid.appendChild(cell);
-        }
-    }
-
-    function changeCalendarMonth(diff) {
-        currentCalMonth += diff;
-        if (currentCalMonth > 12) { currentCalMonth = 1; currentCalYear++; } if (currentCalMonth < 1) { currentCalMonth = 12; currentCalYear--; }
-        if(!document.getElementById('tab-content-shift').classList.contains('hidden')) renderStaffShiftTab();
-        if(!document.getElementById('m-panel-absent-reg').classList.contains('hidden')) renderAbsentCalendar();
-    }
-
-    function submitStaffRequests() {
-        if(tempSelectedStaffDates.length === 0) { alert("日を選んでください！"); return; }
-        const start = document.getElementById('staff-start').value; const end = document.getElementById('staff-end').value;
-        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
-        tempSelectedStaffDates.forEach(dateRaw => {
-            const d = new Date(dateRaw);
-            allRequests.push({
-                id: 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
-                name: loggedInUser, dateStr: `${d.getMonth()+1}/${d.getDate()}(${dayLabels[d.getDay()]})`,
-                dateValue: dateRaw, timeStr: `${start} 〜 ${end}`, role: "通常出勤可能"
-            });
-        });
-        localStorage.setItem('shiftRequests_v13', JSON.stringify(allRequests));
-        alert(`✨ ${tempSelectedStaffDates.length}日分の希望シフトを送信しました。`);
-        tempSelectedStaffDates = []; renderStaffShiftTab();
-    }
-
-    function renderConfirmTimelineTab() {
-        const container = document.getElementById('daily-timeline-container'); if(!container) return; container.innerHTML = "";
-        let dates = []; allRequests.forEach(r => { if(!dates.includes(r.dateValue)) dates.push(r.dateValue); });
-        managerDemoJobs.forEach(j => { if(!dates.includes(j.dateValue)) dates.push(j.dateValue); }); dates.sort();
-        if(dates.length === 0) { container.innerHTML = `<div class="text-center py-10 text-xs text-slate-400">予定はありません。</div>`; return; }
-        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
-        dates.forEach(dateVal => {
-            const d = new Date(dateVal); const dayJobs = managerDemoJobs.filter(j => j.dateValue === dateVal); const dayReqs = allRequests.filter(r => r.dateValue === dateVal);
-            const block = document.createElement('div'); block.className = "bg-white border border-slate-100 rounded-xl p-3 shadow-sm space-y-1.5";
-            let jobsHTML = ""; dayJobs.forEach(j => { jobsHTML += `<div class="text-[11px] bg-rose-50 text-rose-900 p-2 rounded-lg font-bold">📢 ${j.subject} [${j.timeStr}] - <span class="text-rose-600">${j.assignedTeacher ? '✅'+j.assignedTeacher : '⏳募集中'}</span></div>`; });
-            let reqsHTML = dayReqs.length > 0 ? `<div class="text-[10px] text-slate-400 pl-1"><i class="fa-solid fa-user-clock"></i> 出勤可能講師: ${dayReqs.length}名登録あり</div>` : "";
-            block.innerHTML = `<div class="text-xs font-bold text-slate-800">${d.getMonth()+1}/${d.getDate()}(${dayLabels[d.getDay()]})</div>${jobsHTML}${reqsHTML}`;
-            container.appendChild(block);
-        });
-    }
-
-    function switchManagerSubTab(target) {
-        ['demo-reg', 'absent-reg', 'pw-manage'].forEach(s => document.getElementById(`m-panel-${s}`).classList.add('hidden'));
-        document.getElementById(`m-panel-${target}`).classList.remove('hidden');
-        document.getElementById('m-subtab-demo').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-orange-800 transition";
-        document.getElementById('m-subtab-absent').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-orange-800 transition";
-        document.getElementById('m-subtab-pw').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-orange-800 transition";
-        if(target === 'demo-reg') document.getElementById('m-subtab-demo').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-orange-600 text-white transition";
-        if(target === 'absent-reg') { document.getElementById('m-subtab-absent').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-orange-600 text-white transition"; renderAbsentCalendar(); }
-        if(target === 'pw-manage') { document.getElementById('m-subtab-pw').className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-orange-600 text-white transition"; renderTeacherPasswordManager(); }
-    }
-
-    function addStamp(text) {
-        const input = document.getElementById('m-demo-subject'); input.value = input.value === "" ? "体験: " + text : input.value + " " + text;
-    }
-
-    function submitManagerDemo() {
-        const date = document.getElementById('m-demo-date').value; const time = document.getElementById('m-demo-time').value.trim() || "16:00〜17:20";
-        const subject = document.getElementById('m-demo-subject').value.trim(); if(!date || !subject) { alert("入力漏れがあります。"); return; }
-        managerDemoJobs.push({ id: 'm_job_' + Date.now(), dateValue: date, timeStr: time, subject: subject, candidates: [], assignedTeacher: "" });
-        localStorage.setItem('managerDemoJobs_v13', JSON.stringify(managerDemoJobs)); document.getElementById('m-demo-subject').value = "";
-        renderPCCombinedTimeline();
-    }
-
-    function renderAbsentCalendar() {
-        const grid = document.getElementById('absent-monthly-grid'); if(!grid) return; grid.innerHTML = "";
-        const firstDayIndex = new Date(currentCalYear, currentCalMonth - 1, 1).getDay(); const totalDays = new Date(currentCalYear, currentCalMonth, 0).getDate();
-        for (let i = 0; i < firstDayIndex; i++) { grid.appendChild(document.createElement('div')); }
-        for (let day = 1; day <= totalDays; day++) {
-            const cell = document.createElement('div'); const dateStr = `${currentCalYear}-${String(currentCalMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            cell.innerText = day; cell.className = `py-2 text-xs font-bold rounded-lg cursor-pointer border ${tempSelectedAbsents.includes(dateStr) ? 'bg-orange-600 text-white' : 'bg-slate-50 text-slate-800 hover:bg-orange-100'}`;
-            cell.onclick = () => {
-                if (tempSelectedAbsents.includes(dateStr)) { tempSelectedAbsents = tempSelectedAbsents.filter(d => d !== dateStr); }
-                else { tempSelectedAbsents.push(dateStr); } renderAbsentCalendar();
-            };
-            grid.appendChild(cell);
-        }
-    }
-
-    function saveManagerAbsents() {
-        managerAbsentDates = [...tempSelectedAbsents]; localStorage.setItem('managerAbsentDates_v13', JSON.stringify(managerAbsentDates));
-        alert("🔒 不在日を保存しました。"); renderPCCombinedTimeline();
-    }
-
-    function renderTeacherPasswordManager() {
-        const container = document.getElementById('teacher-pw-list-container'); if(!container) return; container.innerHTML = "";
-        Object.keys(teacherDatabase).forEach(pin => {
-            if(pin === "0000") return;
-            const row = document.createElement('div'); row.className = "bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex justify-between items-center text-xs";
-            row.innerHTML = `<div><span class="font-bold text-slate-800 block">👤 ${teacherDatabase[pin]}</span><span class="text-[10px] text-slate-500">暗証番号: <strong class="text-blue-600 font-mono text-sm">${pin}</strong></span></div><div class="flex items-center gap-1"><input type="text" id="edit-pin-${pin}" maxlength="4" placeholder="新4桁" class="w-12 p-1 border rounded text-center font-bold text-xs"><button onclick="updateTeacherPassword('${pin}')" class="bg-orange-600 text-white py-1 px-2 rounded text-[10px] font-bold">変更</button></div>`;
-            container.appendChild(row);
-        });
-    }
-
-    function updateTeacherPassword(oldPin) {
-        const input = document.getElementById(`edit-pin-${oldPin}`); const newPin = input.value.trim();
-        if(newPin.length !== 4 || isNaN(newPin)) { alert("4桁の数字を入力してください。"); return; }
-        if(teacherDatabase[newPin]) { alert("その番号は使用されています。"); return; }
-        const name = teacherDatabase[oldPin]; delete teacherDatabase[oldPin]; teacherDatabase[newPin] = name;
-        localStorage.setItem('teacherDB_v13', JSON.stringify(teacherDatabase)); alert(`🔑 ${name} の暗証番号を変更しました。`); renderTeacherPasswordManager();
-    }
-
-    function renderPCCombinedTimeline() {
-        const container = document.getElementById('pc-timeline-container'); if(!container) return; container.innerHTML = "";
-        let dates = [];
-        allRequests.forEach(r => { if(!dates.includes(r.dateValue)) dates.push(r.dateValue); });
-        managerDemoJobs.forEach(j => { if(!dates.includes(j.dateValue)) dates.push(j.dateValue); });
-        managerAbsentDates.forEach(d => { if(!dates.includes(d)) dates.push(d); });
-        dates.sort();
-
-        if(dates.length === 0) {
-            container.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">データがありません。</p>`; return;
-        }
-
-        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
-        dates.forEach(dateVal => {
-            const d = new Date(dateVal);
-            const dayJobs = managerDemoJobs.filter(j => j.dateValue === dateVal);
-            const dayReqs = allRequests.filter(r => r.dateValue === dateVal);
-            const isAbsent = managerAbsentDates.includes(dateVal);
-
-            const rowBlock = document.createElement('div');
-            rowBlock.className = `p-4 rounded-xl border ${isAbsent ? 'border-orange-200 bg-orange-50/20' : 'border-slate-200 bg-slate-50/50'} grid grid-cols-12 gap-4 items-start shadow-sm`;
-
-            let dateCol = `<div class="col-span-2 font-bold text-slate-800 text-xs pt-1">
-                🗓️ ${d.getMonth()+1}/${d.getDate()}(${dayLabels[d.getDay()]})
-                ${isAbsent?'<br><span class="text-[9px] text-orange-700 bg-orange-100 px-1 rounded font-bold">不在日</span>':''}
-            </div>`;
-
-            let jobsHTML = `<div class="col-span-5 space-y-2">`;
-            if(dayJobs.length === 0) jobsHTML += `<span class="text-[10px] text-slate-400 italic block pt-1">体験予定なし</span>`;
-            dayJobs.forEach(j => {
-                let badge = j.assignedTeacher ? `<span class="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">🎯 確定: ${j.assignedTeacher}</span>` : `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded">⏳ 募集中</span>`;
-                let selectTeacherHTML = "";
-                if(!j.assignedTeacher && j.candidates.length > 0) {
-                    selectTeacherHTML = `<div class="mt-2 pt-1.5 border-t border-slate-100 flex gap-1 flex-wrap items-center"><span class="text-[9px] text-slate-500 font-bold">立候補者:</span>`;
-                    j.candidates.forEach(c => {
-                        selectTeacherHTML += `<button onclick="pcLockTeacher('${j.id}','${c}')" class="bg-blue-50 border border-blue-200 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded hover:bg-emerald-600 hover:text-white transition">🟢 ${c}</button>`;
-                    });
-                    selectTeacherHTML += `</div>`;
-                }
-                jobsHTML += `<div class="bg-white p-2.5 rounded-lg border border-slate-200 text-[11px] relative">
-                    <button onclick="pcDeleteJob('${j.id}')" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
-                    <div class="font-black text-slate-900">${j.subject}</div><div class="text-[10px] text-slate-400 my-0.5">${j.timeStr}</div><div class="mt-1">${badge}</div>${selectTeacherHTML}
-                </div>`;
-            });
-            jobsHTML += `</div>`;
-
-            let reqsHTML = `<div class="col-span-5 space-y-1.5">`;
-            if(dayReqs.length === 0) reqsHTML += `<span class="text-[10px] text-slate-400 italic block pt-1">通常出勤希望なし</span>`;
-            dayReqs.forEach(r => {
-                reqsHTML += `<div class="bg-white p-2.5 rounded-lg border border-l-4 border-blue-500 text-[11px] flex justify-between items-center shadow-xs">
-                    <div><span class="font-bold text-slate-800">👤 ${r.name}</span><span class="text-slate-400 text-[10px] block mt-0.5">${r.timeStr}</span></div>
-                    <span class="text-[9px] bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded">${r.role}</span>
-                </div>`;
-            });
-            reqsHTML += `</div>`;
-
-            rowBlock.innerHTML = dateCol + jobsHTML + reqsHTML;
-            container.appendChild(rowBlock);
-        });
-    }
-
-    function pcLockTeacher(jobId, name) { 
-        const job = managerDemoJobs.find(j => j.id === jobId);
-        if(job) { job.assignedTeacher = name; localStorage.setItem('managerDemoJobs_v13', JSON.stringify(managerDemoJobs)); renderPCCombinedTimeline(); }
-    }
-    function pcDeleteJob(id) { 
-        if(confirm("削除しますか？")) { managerDemoJobs = managerDemoJobs.filter(j => j.id !== id); localStorage.setItem('managerDemoJobs_v13', JSON.stringify(managerDemoJobs)); renderPCCombinedTimeline(); }
-    }
-</script>
-</body>
-</html>
+function json_(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
