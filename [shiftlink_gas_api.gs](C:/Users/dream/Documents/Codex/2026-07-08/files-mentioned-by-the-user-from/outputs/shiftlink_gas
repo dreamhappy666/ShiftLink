@@ -1,0 +1,198 @@
+const SHEETS = {
+  demoLessons: {
+    name: '体験授業',
+    key: 'demoId',
+    headers: ['demoId','date','arrivalTime','lessonStartTime','studentName','grade','subject','assignedTeacherId','status','confirmedAt','schoolName','managerMemo','parentNotes','enrollmentResult','remarks','createdAt','updatedAt']
+  },
+  staffShifts: {
+    name: '確定シフト',
+    key: 'shiftId',
+    headers: ['shiftId','requestId','teacherId','teacherName','date','startTime','endTime','status','publishedAt','createdAt','updatedAt']
+  },
+  shiftRequests: {
+    name: 'シフト希望',
+    key: 'requestId',
+    headers: ['requestId','teacherId','month','date','startTime','endTime','type','status','createdAt','updatedAt']
+  },
+  demoApplications: {
+    name: '体験応募',
+    key: 'applicationId',
+    headers: ['applicationId','demoId','teacherId','status','createdAt','updatedAt']
+  },
+  managerAbsences: {
+    name: '教室長不在日',
+    key: 'absenceId',
+    headers: ['absenceId','date','createdAt','updatedAt']
+  }
+};
+
+function doGet(e) {
+  setupSheets_();
+  const action = (e.parameter.action || 'loadAll');
+  const type = e.parameter.type || '';
+  if (type === 'demo') return json_({ ok: true, demoLessons: readSheet_(SHEETS.demoLessons) });
+  if (type === 'shift') return json_({ ok: true, staffShifts: readSheet_(SHEETS.staffShifts) });
+  if (type === 'absent') return json_({ ok: true, managerAbsences: readSheet_(SHEETS.managerAbsences) });
+  if (action === 'loadAll') {
+    return json_({
+      ok: true,
+      demoLessons: readSheet_(SHEETS.demoLessons),
+      staffShifts: readSheet_(SHEETS.staffShifts),
+      shiftRequests: readSheet_(SHEETS.shiftRequests),
+      demoApplications: readSheet_(SHEETS.demoApplications),
+      managerAbsences: readSheet_(SHEETS.managerAbsences)
+    });
+  }
+  return json_({ ok: false, error: 'Unknown action: ' + action });
+}
+
+function doPost(e) {
+  setupSheets_();
+  const body = JSON.parse(e.postData.contents || '{}');
+  const action = body.action;
+  const payload = body.payload || {};
+
+  if (action === 'upsertDemoLesson') {
+    upsertRow_(SHEETS.demoLessons, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'updateDemoStatus') {
+    patchRow_(SHEETS.demoLessons, payload.demoId, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertDemoApplication') {
+    upsertRow_(SHEETS.demoApplications, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteDemoApplication') {
+    deleteRow_(SHEETS.demoApplications, payload.applicationId);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertShift') {
+    upsertRow_(SHEETS.staffShifts, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteShift') {
+    deleteRow_(SHEETS.staffShifts, payload.shiftId);
+    return json_({ ok: true });
+  }
+  if (action === 'upsertManagerAbsence') {
+    upsertRow_(SHEETS.managerAbsences, payload);
+    return json_({ ok: true });
+  }
+  if (action === 'deleteManagerAbsence') {
+    deleteRow_(SHEETS.managerAbsences, payload.absenceId);
+    return json_({ ok: true });
+  }
+  if (action === 'replaceManagerAbsences') {
+    replaceSheet_(SHEETS.managerAbsences, payload.managerAbsences || []);
+    return json_({ ok: true });
+  }
+  if (action === 'saveAll') {
+    replaceSheet_(SHEETS.demoLessons, payload.demoLessons || []);
+    replaceSheet_(SHEETS.staffShifts, payload.staffShifts || []);
+    replaceSheet_(SHEETS.shiftRequests, payload.shiftRequests || []);
+    replaceSheet_(SHEETS.demoApplications, payload.demoApplications || []);
+    replaceSheet_(SHEETS.managerAbsences, payload.managerAbsences || []);
+    return json_({ ok: true });
+  }
+  return json_({ ok: false, error: 'Unknown action: ' + action });
+}
+
+function setupSheets_() {
+  Object.keys(SHEETS).forEach(function(key) {
+    const cfg = SHEETS[key];
+    const sheet = getSheet_(cfg.name);
+    const firstRow = sheet.getRange(1, 1, 1, cfg.headers.length).getValues()[0];
+    if (firstRow.join('') === '') {
+      sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+      sheet.setFrozenRows(1);
+    }
+  });
+}
+
+function getSheet_(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function readSheet_(cfg) {
+  const sheet = getSheet_(cfg.name);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+  const headers = values[0];
+  return values.slice(1).filter(function(row) {
+    return row.some(function(cell) { return cell !== ''; });
+  }).map(function(row) {
+    const item = {};
+    headers.forEach(function(header, i) {
+      item[header] = formatCell_(header, row[i]);
+    });
+    return item;
+  });
+}
+
+function formatCell_(header, value) {
+  if (!(value instanceof Date)) return value;
+  if (header === 'date') {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  if (header.indexOf('Time') >= 0) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm');
+  }
+  return value.toISOString();
+}
+
+function upsertRow_(cfg, item) {
+  const keyValue = item[cfg.key];
+  if (!keyValue) throw new Error(cfg.key + ' is required');
+  const sheet = getSheet_(cfg.name);
+  const rowIndex = findRowIndex_(sheet, cfg.key, keyValue);
+  const row = cfg.headers.map(function(header) { return item[header] || ''; });
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, cfg.headers.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+}
+
+function patchRow_(cfg, keyValue, patch) {
+  if (!keyValue) throw new Error(cfg.key + ' is required');
+  const current = readSheet_(cfg).find(function(row) { return String(row[cfg.key]) === String(keyValue); }) || {};
+  upsertRow_(cfg, Object.assign(current, patch));
+}
+
+function deleteRow_(cfg, keyValue) {
+  const sheet = getSheet_(cfg.name);
+  const rowIndex = findRowIndex_(sheet, cfg.key, keyValue);
+  if (rowIndex > 0) sheet.deleteRow(rowIndex);
+}
+
+function replaceSheet_(cfg, items) {
+  const sheet = getSheet_(cfg.name);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+  if (items.length) {
+    const rows = items.map(function(item) {
+      return cfg.headers.map(function(header) { return item[header] || ''; });
+    });
+    sheet.getRange(2, 1, rows.length, cfg.headers.length).setValues(rows);
+  }
+}
+
+function findRowIndex_(sheet, keyHeader, keyValue) {
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) return -1;
+  const keyCol = values[0].indexOf(keyHeader);
+  if (keyCol < 0) return -1;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][keyCol]) === String(keyValue)) return i + 1;
+  }
+  return -1;
+}
+
+function json_(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
